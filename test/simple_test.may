@@ -1,0 +1,17 @@
+program simple_test
+
+import non_simple_test
+
+var x = 30;
+string s = "iuhddvf$@dsfvfdv"
+
+int y = 3 $ x;
+
+int string_len(string s) {
+    int length = 0;
+    for (int  i = 0; i < len(s); i++) {
+        length++;
+    }
+
+    return length;
+}
