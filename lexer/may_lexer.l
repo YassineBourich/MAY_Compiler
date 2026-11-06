@@ -25,10 +25,10 @@ ID          {LETTER}({LETTER}|{DIGIT})*
 INT         {DIGIT}+
 FLOAT       ({DIGIT}+\.{DIGIT}*|\.{DIGIT}+)
 IMAGINARY   ({FLOAT}|{INT})i
-CHAR        ([^\'\\\n]|\\.)
-STRING      \"{CHAR}*\"
+CHARACTER        ([^\'\\\n]|\\.)
+STRING      \"{CHARACTER}*\"
 RAW_STRING  `[^`]*`
-RUNE        \'{CHAR}\'
+CHAR        \'{CHARACTER}\'
 HSPACE      [ \t\r]+
 SINGLE_LINE_COMMENT     "//"[^\n]*
 MULTILINE_COMMENT       "/*"([^*]|\*+[^*/])*\*+"/"
@@ -129,7 +129,7 @@ MULTILINE_COMMENT       "/*"([^*]|\*+[^*/])*\*+"/"
 
 {INT}       {
                 char *end = NULL;
-                long value = strtol(yytext, &end, 10);
+                yylval.node = ast_int(strtol(yytext, &end, 10));
 
                 printf("%-10d lexeme=\"%s\" value=%ld @ %d:%d\n",
                        INT, yytext, value, line, column);
@@ -140,7 +140,7 @@ MULTILINE_COMMENT       "/*"([^*]|\*+[^*/])*\*+"/"
 
 {FLOAT}     {
                 char *end = NULL;
-                double value = strtod(yytext, &end);
+                yylval.node = ast_float(strtod(yytext, &end));
 
                 printf("%-10d lexeme=\"%s\" value=%g @ %d:%d\n",
                        FLOAT, yytext, value, line, column);
@@ -149,21 +149,36 @@ MULTILINE_COMMENT       "/*"([^*]|\*+[^*/])*\*+"/"
                 return FLOAT;
             }
 
-{IMAGINARY} {
-                char *end = NULL;
-                double value = strtod(yytext, &end);
+{STRING}    { 
+                int len = strlen(yytext);
+                char* clean_string = malloc(len - 1);
+                if (!clean_string) memory_error();
 
-                printf("%-10d lexeme=\"%s\" value=%gi @ %d:%d\n",
-                       IMAGINARY, yytext, value, line, column);
+                strncpy(clean_string, yytext + 1, len - 2);
+                clean_string[len - 2] = '\0';
 
-                column += yyleng;
-                return IMAGINARY;
+                yylval.node = ast_string(clean_string);
+
+                free(clean_string);
+                return EMIT(STRING);
             }
-{STRING}    { return EMIT(STRING); }
-{RUNE}    { return EMIT(RUNE); }
+{CHAR}      {
+                yylval.node = ast_char(yytext[1]);
+                return EMIT(CHAR); 
+            }
 
 {RAW_STRING} {
-                emit(STRING, yytext, line, column);
+                int len = strlen(yytext);
+                char* clean_string = malloc(len - 1);
+                if (!clean_string) memory_error();
+
+                strncpy(clean_string, yytext + 1, len - 2);
+                clean_string[len - 2] = '\0';
+
+                yylval.node = ast_string(clean_string);
+                free(clean_string);
+
+                emit(RAW_STRING, yytext, line, column);
 
                 for (int i = 0; i < yyleng; i++) {
                     if (yytext[i] == '\n') {
@@ -173,10 +188,14 @@ MULTILINE_COMMENT       "/*"([^*]|\*+[^*/])*\*+"/"
                         column++;
                     }
                 }
-                return STRING;
+
+                return RAW_STRING;
              }
 
-{ID}        { return EMIT(ID); }
+{ID}        {
+
+                return EMIT(ID); 
+            }
 
 {SINGLE_LINE_COMMENT}   { column += yyleng; }
 {MULTILINE_COMMENT}     {
@@ -195,9 +214,10 @@ MULTILINE_COMMENT       "/*"([^*]|\*+[^*/])*\*+"/"
 
 .           {
                 fprintf(stderr,
-                        "Erreur lexicale : caractere inattendu '%s' @ %d:%d\n",
+                        "Erreur lexicale : inattended caracter '%s' @ %d:%d\n",
                         yytext, line, column);
                 column += yyleng;
+                return EMIT(BAD_CHAR);
             }
 
 %%
